@@ -1,0 +1,116 @@
+#!/usr/bin/perl
+
+use 5.12.0;
+use warnings;
+
+use Getopt::Long;
+use Pod::Usage;
+
+use IO::File;
+use GLSL::Preprocessor;
+
+my $help = 0; # Show help page
+my $man = 0; # Show manual page
+my $verbose = 0; # Verbose mode
+my $deps = 0; # Dependencies mode
+my $include_path = ['.'];
+my $output_path = '-';
+
+# Parse options
+GetOptions(
+	'help|?' => \$help,
+	'man' => \$man,
+	'verbose+' => \$verbose,
+	'deps' => \$deps,
+	'include|I=s@' => \$include_path,
+	'output=s' => \$output_path) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitval => 0, -verbose => 2) if $man;
+
+# Create preprocssor object
+my $pp = GLSL::Preprocessor->new(
+	INCLUDE_PATH => $include_path,
+	INTERPOLATE => 1,
+);
+
+if ($deps) {
+	my $prefix = $#ARGV > 0;
+	while (my $input_file = shift @ARGV) {
+		say STDERR "processing $input_file" if $verbose;
+		
+		my $input_prefix = $prefix ? "$input_file: " : "";
+		say "$input_prefix" . join(';', @{$pp->get_deps($input_file)});
+	}
+} else {
+	# Create output file
+	my $out_io = IO::File->new();
+	if ($output_path eq '-') {
+		$out_io->fdopen(fileno(STDOUT), 'w') || die "Failed to open $output_path: $!";
+		autoflush STDOUT 1;
+	} else {
+		$out_io->open($output_path, 'w');
+	}
+	
+	# Process input
+	while (my $input_file = shift @ARGV) {
+		say STDERR "processing $input_file" if $verbose;
+		$pp->process($input_file, $out_io);
+	}
+	
+	# Close output
+	undef $out_io;
+}
+
+__END__
+
+=head1 NAME
+
+glslpp - GLSL Preprocessor tool
+
+=head1 SYNOPSIS
+
+glslpp [options] [file ...]
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<file ...>
+
+List of template files to process.
+
+=item B<--help>
+
+Print a brief help message and exits.
+
+=item B<--man>
+
+Prints the manual page and exits.
+
+=item B<--verbose>
+
+Enable verbose mode.
+
+=item B<--deps>
+
+Enable dependencies mode. Prints the full path of all included files for each
+input file.
+
+=item B<--include INCLUDE>
+
+Adds B<INCLUDE> to the include path.
+
+=item B<--output OUTPUT>
+
+Sets the output file to write to. In case of multiple input files, the output
+of each template will be concatenated into the output file.
+
+=back
+
+=head1 DESCRIPTION
+
+B<This program> will read process the input GLSL templates and
+return (either in the file specified with B<-o> or on the standard
+output) the result of the compiled template.
+
+=cut
