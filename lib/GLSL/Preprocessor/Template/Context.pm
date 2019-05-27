@@ -45,7 +45,7 @@ sub get_included_files {
 		if (File::Spec->file_name_is_absolute($fn)) {
 			$fn
 		} else {
-			List::Util::first { -f } (map { File::Spec->catfile($_, $fn) } @$include_path)
+			List::Util::first { -f } (map { File::Spec->canonpath(File::Spec->catfile($_, $fn)) } @$include_path)
 		}
 	} @_included_files;
 
